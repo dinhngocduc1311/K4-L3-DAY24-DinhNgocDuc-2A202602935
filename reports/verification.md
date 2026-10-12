@@ -279,3 +279,30 @@ Kiểm ngày 12/10/2026 (Asia/Bangkok), đúng query baseline và principal DPO.
 - Nội dung commit do sinh viên cung cấp; CP1 đã commit/push, thông điệp CP2
   do sinh viên nhập là `Complete CP2`. Lấy SHA cuối cùng bằng
   `git rev-parse HEAD` khi nộp bài.
+
+## BƯỚC 6 — kiểm tra trước khi nộp
+
+Kiểm ngày 12/10/2026 (Asia/Bangkok), trên nhánh `main`, working tree sạch
+trước khi ghi mục này.
+
+- `python -m pytest tests/ -q --basetemp=.pytest_tmp`:
+  **38 passed, 0 failed, 0 skipped** trong 7.86 giây.
+- `python -m agent.check_lure corpus/ticket-90*.md`:
+  **4/4 lure sẵn sàng**, đúng `KH-000999` và endpoint localhost.
+- `python -c "from agent.ledger import verify; ..."`: **True**.
+- `pre-commit run --all-files`: `Detect hardcoded secrets...Passed`.
+- `git status --short`: không có output trước khi cập nhật báo cáo này.
+- Rà độc lập `test_obo.py`, `test_split.py`, `test_injection.py`:
+  **14 passed**. `support_l1` không đọc restricted record, `dpo` vẫn đọc
+  khách liên quan hợp lệ và `KH-000777` không bị đọc từ free text.
+- Ledger có **46 dòng**, `missing_reason=0`, không chứa PII fixture và có
+  **2** quyết định `http_post=deny`; `verify=True`.
+- `attack-before.log` có **4** POST synthetic chứa `KH-000999`;
+  `attack-after.log` **0 byte**, không chứa bất kỳ PII fixture nào.
+- `gitleaks dir --config .gitleaks.toml --redact .`: mã 0,
+  `no leaks found`. Không có secret hoặc PII thật được đưa vào bài.
+- Đủ toàn bộ file bắt buộc trong `SUBMISSION.md`; ba evidence bị ignore
+  (`attack-before.log`, `attack-after.log`, `ledger.jsonl`) đều đã được Git
+  track. Commit synthetic `1bdd849` vẫn có kiểu object `commit`.
+- Thư mục repo là `K4-L3-DAY24-DinhNgocDuc-2A202602935`, origin là fork cá
+  nhân `https://github.com/dinhngocduc1311/K4-L3-DAY24-DinhNgocDuc-2A202602935.git`.
