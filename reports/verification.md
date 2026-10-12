@@ -203,16 +203,45 @@ Markdown trong repo.
   nhưng không phát hiện cắt dòng cuối hoặc viết lại toàn bộ chuỗi nếu không
   có mốc hash/số dòng cuối ở nơi tin cậy bên ngoài; lab không yêu cầu mốc đó.
 
+## BƯỚC 5 — CP4 supply chain và secret giả
+
+Kiểm ngày 12/10/2026 (Asia/Bangkok).
+
+- Phiên bản: Python **3.11.9**, Gitleaks **8.30.1**, pip-tools/pip-compile
+  **7.6.2**, pre-commit **4.6.2**.
+- `gitleaks git --config .gitleaks.toml --redact .`: mã thoát **1** như
+  dự kiến; một finding đã redact, rule `lab24-synthetic-token`, file
+  `lab-fake-secret.txt:1`, commit đầy đủ
+  `1bdd849922156c868a5ee9293d68f5b72e242d2c`.
+- Lần đầu `gitleaks dir --config .gitleaks.toml --redact .` trả mã **1**
+  do `generic-api-key` nhận nhầm `RegEnumKey` trong
+  `.venv/Lib/site-packages/setuptools/_distutils/msvccompiler.py:45`.
+  Chỉ allowlist `^.venv/`; quét lại lịch sử vẫn tìm đúng token giả, còn
+  quét cây hiện tại trả mã **0**, `no leaks found`.
+- `python -m piptools compile --generate-hashes -o requirements.lock requirements.txt`:
+  thành công (có cảnh báo thay đổi mặc định `--strip-extras` ở pip-tools 8).
+- `python -m pip install --require-hashes -r requirements.lock`: thành công;
+  các package đã đúng phiên bản và hash trong lock.
+- `.pre-commit-config.yaml` pin repo Gitleaks chính thức ở `v8.30.1`, dùng
+  `gitleaks-system` và `pass_filenames: false`.
+- `pre-commit install`: thành công tại `.git/hooks/pre-commit`.
+- `pre-commit run --all-files`: `Detect hardcoded secrets...Passed`.
+- Lượt test supply-chain đầu tiên: **2 passed, 1 failed** vì incident note
+  còn placeholder. Sau khi ghi đầy đủ finding, false positive và quy trình
+  rotate/thu hồi, chạy lại
+  `python -m pytest tests/test_supply_chain.py -v --basetemp=.pytest_tmp`:
+  **3 passed**.
+
 ## Kiểm tra cuối bài — chưa thực hiện
 
 - Đã rà README/RULES/CHECKPOINTS/RUBRIC/SUBMISSION và các mẫu báo cáo:
   CP1–CP3e đủ code, test và evidence được yêu cầu ở các bước đã nhận.
-- CP4 còn thiếu hook Gitleaks và incident note; `requirements.lock` đã tạo
-  nhưng chưa commit. Đây là hai failure của full suite nêu trên.
+- CP4 đã hoàn thành hook, lock có hash, incident note, hai kiểu quét
+  Gitleaks và test supply-chain; chờ commit/push checkpoint.
 - CP5 còn thiếu `attack-after.log`, compliance mapping, DPIA-lite và lượt
   xác minh/nộp cuối. Không ghi kết quả giả trước khi chạy đúng bước.
-- `pre-commit run --all-files`: chưa chạy; cấu hình và cài hook thuộc CP4.
-- Quét lịch sử token giả: thuộc CP4, chưa thực hiện.
+- `pre-commit run --all-files`: đã pass ở CP4.
+- Quét lịch sử token giả và quét file hiện tại: đã thực hiện ở CP4.
 - Ledger verify và ledger thật đã hoàn thành ở CP3e.
 - Log before và ledger đã tạo; log after cùng báo cáo CP4/CP5 chưa hoàn tất.
 - Nội dung commit do sinh viên cung cấp; CP1 đã commit/push, thông điệp CP2
