@@ -306,3 +306,30 @@ trước khi ghi mục này.
   track. Commit synthetic `1bdd849` vẫn có kiểu object `commit`.
 - Thư mục repo là `K4-L3-DAY24-DinhNgocDuc-2A202602935`, origin là fork cá
   nhân `https://github.com/dinhngocduc1311/K4-L3-DAY24-DinhNgocDuc-2A202602935.git`.
+
+## Audit toàn repo sau BƯỚC 6
+
+Kiểm ngày 12/10/2026 (Asia/Bangkok), giả định tải dự kiến là một học viên
+chạy CLI/mock cục bộ như đề bài, không phải dịch vụ nhiều tiến trình.
+
+- Đã đọc và đối chiếu 5 file hướng dẫn gốc, 6 file báo cáo/corpus do học
+  viên viết và kiểm cấu trúc cả **56 Markdown được Git track**; 45 file
+  `corpus/` đều đọc được bằng UTF-8 và có tiêu đề `# Ticket #...`.
+- Kiểm tự động **52** tham chiếu `file:dòng`: mọi file tồn tại và không tham
+  chiếu vượt số dòng hiện tại. Đối chiếu thủ công các dòng baseline, policy,
+  split, ledger, compliance và evidence chính.
+- Sửa finding tài liệu duy nhất: bốn mục sau-containment trong
+  `injection-corpus.md` còn ghi CP5 đang chờ dù CP5 đã xong. Hiện mỗi lure có
+  evidence trước/sau; file ghi đúng 8 test injection pass và log sau 0 byte.
+- Source khung `agent/loop.py`, `agent/tools.py`, `agent/llm.py`, `sink/`,
+  fixture và test bắt buộc không bị sửa để tạo kết quả đỗ. Chỉ có test bổ
+  sung `tests/test_red_team_lures.py` cho bốn lure.
+- Không có `.venv`, cache, `reports/sink.log` hay file cá nhân được Git
+  track. Toàn bộ 19 artifact bắt buộc trong `SUBMISSION.md` có trên
+  `origin/main`; repo không shallow và vẫn chứa commit synthetic `1bdd849`.
+- Rà rubric bắt buộc: đủ evidence cho cả 10 tiêu chí, tương ứng **100/100
+  điểm bắt buộc theo tự đánh giá**; không triển khai bonus tùy chọn.
+- Rà 5 điều kiện trượt: 0 reason rỗng; after log 0 byte/0 PII fixture;
+  split/OBO/injection 14 test pass; không PII raw trong ledger; Gitleaks cây
+  hiện tại sạch và dữ liệu fixture được generator seed cố định xác nhận là
+  synthetic.
