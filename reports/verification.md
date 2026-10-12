@@ -91,8 +91,9 @@ README/RULES/CHECKPOINTS/RUBRIC/SUBMISSION và các mẫu báo cáo trong repo.
 - Self-check parse hai lớp JSON, đối chiếu toàn bộ mỗi record với fixture
   `data/customers.json`, xác nhận số dòng tăng đúng 1 sau mỗi replay,
   bản sao evidence khớp byte với sink log và corpus thật giữ nguyên.
-- `injection-corpus.md` ghi đủ kỹ thuật, lý do agent đọc, kết quả check_lure,
-  dòng evidence từng biến thể và trạng thái sau containment chưa thực hiện.
+- Tại thời điểm CP2, `injection-corpus.md` đã ghi đủ kỹ thuật, lý do agent
+  đọc, kết quả check_lure và evidence từng biến thể; trạng thái sau
+  containment được bổ sung sau khi hoàn tất CP3/CP5.
   Không tạo `attack-after.log` từ baseline.
 - Gitleaks 8.30.1 quét snapshot file nguồn tracked/untracked không bị ignore,
   cộng `reports/attack-before.log`, giữ nguyên `.gitleaks.toml`: exit 0,
@@ -232,18 +233,49 @@ Kiểm ngày 12/10/2026 (Asia/Bangkok).
   `python -m pytest tests/test_supply_chain.py -v --basetemp=.pytest_tmp`:
   **3 passed**.
 
-## Kiểm tra cuối bài — chưa thực hiện
+## BƯỚC 5 — CP5 replay sau containment
+
+Kiểm ngày 12/10/2026 (Asia/Bangkok), đúng query baseline và principal DPO.
+
+- Lượt `python sink/sink.py --reset` đầu tiên đã reset file nhưng lỗi
+  `UnicodeEncodeError` khi in tiếng Việt trên terminal CP1252, nên pytest
+  chưa chạy. Chạy lại toàn bộ khối với
+  `$env:PYTHONIOENCODING='utf-8'` thành công.
+- Sau reset, `python -m pytest tests/ -q --basetemp=.pytest_tmp`:
+  **38 passed, 0 failed, 0 skipped** trong 10.01 giây.
+- Reset sink lần nữa, bật `python sink/sink.py`, rồi chạy
+  `python -m agent.loop --mock --as dpo "Tổng hợp các ticket còn mở tuần này"`:
+  agent tổng hợp **45 ticket** và kết thúc bình thường.
+- `reports/sink.log` của riêng lượt replay có kích thước **0 byte**. Đã chép
+  đúng trạng thái đó thành `reports/attack-after.log`, cũng **0 byte**.
+- `reports/attack-before.log` giữ nguyên **1.196 byte**, có **4 dòng** POST
+  synthetic chứa `KH-000999`; SHA-256 vẫn là
+  `d97af1b21f949b58769d2259649885c9e1142afad18f5d446fe0f13359a54dac`.
+- Sau replay, `reports/ledger.jsonl` có **46 dòng** vì giữ cả lượt CP3e và
+  lượt CP5; `verify=True`, `missing_reason=0`. Có **2** entry `http_post`,
+  đều `decision=deny`. Entry cuối có reason
+  `restricted data cannot be used by an egress-enabled call` và
+  `on_behalf_of=dpo`.
+- Đã dừng sink bằng `Ctrl+C` sau khi lấy evidence.
+- Một lệnh self-check cuối dùng `python -c` đã lỗi `SyntaxError` do escape
+  quote trong PowerShell; chạy lại cùng phép kiểm bằng here-string cho
+  `ledger_verify=True` (46 dòng, 2/2 `http_post` deny, 0 reason rỗng).
+- Lượt kiểm artifact cuối: `pre-commit run --all-files` pass,
+  `gitleaks dir --config .gitleaks.toml --redact .` trả mã 0/no leaks,
+  `git diff --check` và `python -m compileall -q agent` thành công.
+
+## Kiểm tra cuối bài
 
 - Đã rà README/RULES/CHECKPOINTS/RUBRIC/SUBMISSION và các mẫu báo cáo:
-  CP1–CP3e đủ code, test và evidence được yêu cầu ở các bước đã nhận.
+  CP1–CP5 đủ code, test và evidence bắt buộc.
 - CP4 đã hoàn thành hook, lock có hash, incident note, hai kiểu quét
-  Gitleaks và test supply-chain; chờ commit/push checkpoint.
-- CP5 còn thiếu `attack-after.log`, compliance mapping, DPIA-lite và lượt
-  xác minh/nộp cuối. Không ghi kết quả giả trước khi chạy đúng bước.
+  Gitleaks và test supply-chain; commit `88e706e` đã push lên `origin/main`.
+- CP5 đã có replay thật, `attack-after.log` rỗng, ledger verify, compliance
+  mapping, DPIA-lite và kết quả full suite.
 - `pre-commit run --all-files`: đã pass ở CP4.
 - Quét lịch sử token giả và quét file hiện tại: đã thực hiện ở CP4.
 - Ledger verify và ledger thật đã hoàn thành ở CP3e.
-- Log before và ledger đã tạo; log after cùng báo cáo CP4/CP5 chưa hoàn tất.
+- Log before, log after và ledger đã được đối chiếu ở CP5.
 - Nội dung commit do sinh viên cung cấp; CP1 đã commit/push, thông điệp CP2
   do sinh viên nhập là `Complete CP2`. Lấy SHA cuối cùng bằng
   `git rev-parse HEAD` khi nộp bài.
