@@ -60,8 +60,9 @@ def append(entry: dict, path: Path) -> dict:
         if lines:
             previous_hash = json.loads(lines[-1])["hash"]
 
-    record = dict(entry, prev_hash=previous_hash)
-    payload = json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    record = {key: value for key, value in entry.items() if key not in {"hash", "prev_hash"}}
+    record["prev_hash"] = previous_hash
+    payload = json.dumps(record, sort_keys=True)
     record["hash"] = hashlib.sha256(payload.encode("utf-8")).hexdigest()
     with path.open("a", encoding="utf-8") as ledger_file:
         ledger_file.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
@@ -69,4 +70,23 @@ def append(entry: dict, path: Path) -> dict:
 
 
 def verify(path: Path) -> bool:
-    raise NotImplementedError("BƯỚC 3d: implement ledger verify")
+    if not path.exists():
+        return False
+
+    previous_hash = "0" * 64
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            record = json.loads(line)
+            if not isinstance(record.get("reason"), str) or not record["reason"].strip():
+                return False
+            if record.get("prev_hash") != previous_hash:
+                return False
+            stored_hash = record.pop("hash", None)
+            payload = json.dumps(record, sort_keys=True)
+            expected_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+            if stored_hash != expected_hash:
+                return False
+            previous_hash = stored_hash
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+    return True

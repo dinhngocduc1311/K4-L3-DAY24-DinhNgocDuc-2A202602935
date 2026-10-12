@@ -151,17 +151,70 @@ trong đề BƯỚC 3 mới.
   `FileNotFoundError` vì ba tiến trình pytest cùng thao tác dưới `.pytest_tmp`.
   Chạy lại tuần tự đúng lệnh đề bài cho kết quả 5/5 pass; đây không phải lỗi
   logic policy/runner.
-- `ledger.append()` được hoàn thiện tối thiểu vì CP3c bắt buộc ghi allow/deny
-  trước tool. `ledger.verify()` và bằng chứng ledger thật vẫn thuộc CP3e/CP5,
-  chưa được tuyên bố hoàn thành ở bước này.
+- Commit `f9374a991e7a51346faea244e73a331e94de3ae1` đã bị ghi `Complete CP3`
+  và push trước khi nhận đủ đề CP3d/CP3e. Phần dưới ghi commit bổ sung để
+  lịch sử phản ánh trung thực việc hoàn tất CP3 sau đó.
+
+## BƯỚC 4 — CP3d và CP3e
+
+Kiểm ngày 12/10/2026 (Asia/Bangkok), sau khi đối chiếu lại toàn bộ file
+Markdown trong repo.
+
+- Run A chỉ gọi `search_docs`, phát hiện lure, redact nội dung cho summarize
+  và lấy ticket ID bằng mẫu tên file `ticket-(\d+).md`. Run B chỉ nhận tập
+  `int` này; helper tra `related_tickets` từ `data/customers.json`, không
+  nhận document text hoặc customer ID do attacker viết.
+- Lượt policy `http_post` dùng classification `restricted`, bật egress và
+  chỉ hash tham số URL. Hồ sơ khách không được đưa vào yêu cầu kiểm gửi;
+  policy deny trước khi `tools.http_post` có thể chạy.
+- `python -m pytest tests/test_split.py -v --basetemp=.pytest_tmp`:
+  **1 passed**. `KH-000777` chưa từng được đọc, trong khi khách liên kết
+  hợp lệ vẫn được đọc.
+- `python -m pytest tests/test_injection.py -v --basetemp=.pytest_tmp`:
+  **8 passed, 0 skipped** cho 4 lure × 2 principal. DPO đọc hợp lệ
+  `KH-000999`; egress vẫn bị policy chặn.
+- `python -m pytest tests/test_ledger.py -v --basetemp=.pytest_tmp`:
+  **3 passed**. Hash chain nối từ 64 số `0`; sửa dòng cũ hoặc reason rỗng
+  làm `verify()` trả `False`.
+- Đã chạy đúng CLI DPO theo đề; agent tổng hợp 45 ticket và tạo
+  `reports/ledger.jsonl` gồm 23 dòng. Lệnh kiểm ledger in `True`.
+- Một lượt chạy lại thiếu `PYTHONIOENCODING` đã lỗi `UnicodeEncodeError`
+  ở bước in tiếng Việt trên terminal CP1252 (sau khi ledger đã được ghi).
+  Đã xoá evidence của lượt lỗi và chạy sạch lại với
+  `$env:PYTHONIOENCODING='utf-8'`; CLI và kiểm ledger đều thành công.
+- Ledger thật có một dòng `tool=http_post`, `decision=deny`, reason
+  `restricted data cannot be used by an egress-enabled call`,
+  `on_behalf_of=dpo`; không dòng nào thiếu reason/OBO metadata.
+  Quét nội dung không thấy CCCD/SĐT/STK/email thô nào từ fixture.
+- Kiểm lại ledger sau lần sinh cuối: **23 entries**, `verify=True`,
+  `missing_reason=0`, anchor đầu là 64 số `0`, `raw_fixture_pii=0`.
+- `gitleaks 8.30.1` quét riêng năm artifact CP3 đang thay đổi
+  (`runner.py`, `ledger.py`, hai báo cáo và ledger thật): **no leaks found**.
+  Quét thẳng cả thư mục repo còn đi vào `.venv` và báo một false positive
+  `RegEnumKey` của `setuptools`; đây không phải source/artifact của bài.
+- `git diff --check` và `python -m compileall -q agent`: thành công.
+  `reports/attack-before.log` không đổi, SHA-256
+  `d97af1b21f949b58769d2259649885c9e1142afad18f5d446fe0f13359a54dac`.
+- Lượt kiểm toàn bộ `tests/` cho kết quả **36 passed, 2 failed**; hai lỗi
+  duy nhất là `.pre-commit-config.yaml` chưa có và incident note chưa điền,
+  đều là sản phẩm CP4 chưa được thực hiện. Chạy lại toàn bộ test ngoài
+  `tests/test_supply_chain.py`: **35 passed**.
+- Giới hạn: hash chain tự thân phát hiện sửa/chèn trong chuỗi hiện có,
+  nhưng không phát hiện cắt dòng cuối hoặc viết lại toàn bộ chuỗi nếu không
+  có mốc hash/số dòng cuối ở nơi tin cậy bên ngoài; lab không yêu cầu mốc đó.
 
 ## Kiểm tra cuối bài — chưa thực hiện
 
-- `python -m pytest tests/ -q`: chưa chạy toàn bộ; `ledger.verify()` còn scaffold.
+- Đã rà README/RULES/CHECKPOINTS/RUBRIC/SUBMISSION và các mẫu báo cáo:
+  CP1–CP3e đủ code, test và evidence được yêu cầu ở các bước đã nhận.
+- CP4 còn thiếu hook Gitleaks và incident note; `requirements.lock` đã tạo
+  nhưng chưa commit. Đây là hai failure của full suite nêu trên.
+- CP5 còn thiếu `attack-after.log`, compliance mapping, DPIA-lite và lượt
+  xác minh/nộp cuối. Không ghi kết quả giả trước khi chạy đúng bước.
 - `pre-commit run --all-files`: chưa chạy; cấu hình và cài hook thuộc CP4.
 - Quét lịch sử token giả: thuộc CP4, chưa thực hiện.
-- Ledger verify: thuộc CP3e/CP5, chưa thực hiện.
-- Log before đã tạo ở CP2; log after, ledger và báo cáo CP4/CP5 chưa tạo.
+- Ledger verify và ledger thật đã hoàn thành ở CP3e.
+- Log before và ledger đã tạo; log after cùng báo cáo CP4/CP5 chưa hoàn tất.
 - Nội dung commit do sinh viên cung cấp; CP1 đã commit/push, thông điệp CP2
   do sinh viên nhập là `Complete CP2`. Lấy SHA cuối cùng bằng
   `git rev-parse HEAD` khi nộp bài.

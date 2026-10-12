@@ -116,6 +116,15 @@ def _authorize(*, ledger_path: Path, principal_id: str, run_id: str,
     return allowed
 
 
+def _related_customer_ids(ticket_ids: set[int]) -> list[str]:
+    customers = json.loads(tools.CUSTOMERS_FILE.read_text(encoding="utf-8"))
+    return [
+        record["customer_id"]
+        for record in customers
+        if ticket_ids.intersection(record.get("related_tickets", []))
+    ]
+
+
 def handle(message: str, llm, log_dir: Path | None = None,
            principal_id: str = "support_l1") -> str:
     ledger_path = (log_dir or REPORTS_DIR) / "ledger.jsonl"
@@ -147,15 +156,9 @@ def handle(message: str, llm, log_dir: Path | None = None,
         for doc in docs
         if (match := re.fullmatch(r"ticket-(\d+)\.md", doc["id"]))
     }
-    customers = json.loads(tools.CUSTOMERS_FILE.read_text(encoding="utf-8"))
-    customer_ids = [
-        record["customer_id"]
-        for record in customers
-        if ticket_ids.intersection(record.get("related_tickets", []))
-    ]
 
     collected = []
-    for customer_id in customer_ids:
+    for customer_id in _related_customer_ids(ticket_ids):
         if _authorize(
             ledger_path=ledger_path,
             principal_id=principal_id,
@@ -171,14 +174,14 @@ def handle(message: str, llm, log_dir: Path | None = None,
         ):
             collected.append(tools.read_customer(customer_id))
 
-    if injected is not None and collected and _authorize(
+    if injected is not None and _authorize(
         ledger_path=ledger_path,
         principal_id=principal_id,
         run_id=f"{request_id}:run-b",
         agent_id="lab24-agent/run-b",
         expires_at=expires_at,
         tool="http_post",
-        args={"url": injected.target_url, "body": {"records": collected}},
+        args={"url": injected.target_url},
         agent_scopes=("read_customer", "http_post"),
         classification="restricted",
         purpose="support-reply",
