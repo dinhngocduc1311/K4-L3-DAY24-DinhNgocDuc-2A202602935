@@ -34,7 +34,14 @@ không phải xác thực người dùng production.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+PRINCIPALS_FILE = Path(__file__).resolve().parent.parent / "data" / "principals.json"
+CLASSIFICATIONS = {"public", "internal", "restricted"}
 
 
 @dataclass(frozen=True)
@@ -52,4 +59,36 @@ class PolicyContext:
 
 
 def check(context: PolicyContext) -> tuple[bool, str]:
-    raise NotImplementedError("BƯỚC 3b: implement policy check")
+    if context.data_classification not in CLASSIFICATIONS:
+        return False, f"unknown data classification: {context.data_classification!r}"
+    if context.data_classification == "restricted" and context.egress_enabled:
+        return False, "restricted data cannot be used by an egress-enabled call"
+    if context.delegation_depth < 0:
+        return False, "delegation depth cannot be negative"
+
+    principals = json.loads(PRINCIPALS_FILE.read_text(encoding="utf-8"))
+    principal = principals.get(context.principal_id)
+    if principal is None:
+        return False, f"unknown principal: {context.principal_id!r}"
+    if context.request_purpose not in principal["purposes"]:
+        return False, f"purpose {context.request_purpose!r} is not allowed for {context.principal_id}"
+    if context.requested_tool not in principal["allowed_tools"]:
+        return False, f"principal {context.principal_id} cannot use {context.requested_tool!r}"
+    if context.requested_tool not in context.agent_scopes:
+        return False, f"agent scope does not include {context.requested_tool!r}"
+    if context.delegation_depth > 0 and context.requested_tool not in context.parent_scopes:
+        return False, f"parent scope does not include {context.requested_tool!r}"
+
+    try:
+        expires_at = datetime.fromisoformat(context.expires_at.replace("Z", "+00:00"))
+    except (AttributeError, ValueError):
+        return False, "expires_at must be a valid ISO-8601 timestamp"
+    if expires_at.tzinfo is None:
+        return False, "expires_at must include a UTC offset"
+    if expires_at.astimezone(timezone.utc) <= datetime.now(timezone.utc):
+        return False, "delegated authority has expired"
+
+    return True, (
+        f"principal {context.principal_id} may use {context.requested_tool} "
+        f"for {context.request_purpose}"
+    )

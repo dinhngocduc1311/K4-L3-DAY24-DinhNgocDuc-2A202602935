@@ -104,9 +104,60 @@ README/RULES/CHECKPOINTS/RUBRIC/SUBMISSION và các mẫu báo cáo trong repo.
 - Không có lỗi trong kiểm tra CP2 ở trên. Test containment chỉ chạy sau
   CP3; chưa mô tả CP2 là đã chặn được injection hoặc đạt toàn bộ rubric.
 
+## BƯỚC 3 — CP3a, CP3b và CP3c
+
+Kiểm ngày 12/10/2026 (Asia/Bangkok), theo đúng lệnh và `--basetemp`
+trong đề BƯỚC 3 mới.
+
+- `python -m pytest tests/test_pii.py -v -s --basetemp=.pytest_tmp`:
+  **2 passed**; `gold=118`, `pred=118`, `tp=118`,
+  `precision=1.000`, `recall=1.000`. Recall lớn hơn 95%, đạt band cao nhất
+  trong `RUBRIC.md` trên testset synthetic hiện tại.
+- PII gate nhận diện bốn loại `VN_CCCD`, `VN_PHONE`, `VN_BANK_ACCOUNT`,
+  `EMAIL`, giữ offset `[start:end]`, loại vùng trùng và redact từ phải sang
+  trái. STK có ưu tiên khi số 12 chữ số đồng thời giống định dạng CCCD.
+- Giới hạn regex: không xác minh checksum/đầu số được cấp phát; STK chỉ được
+  nhận diện khi có nhãn `STK` hoặc `số tài khoản`; email Unicode hoặc định
+  dạng bất thường có thể bị bỏ sót; chuỗi số hợp lệ về hình thức vẫn có thể
+  tạo false positive. Kết quả 1.000 chỉ áp dụng bộ mẫu synthetic của repo.
+- `python -m pytest tests/test_policy.py -v --basetemp=.pytest_tmp`:
+  **4 passed**. Có cả allow và deny: `restricted + egress` luôn deny, kể cả
+  DPO; `search_docs` hợp lệ trên internal/public vẫn allow. Mọi nhánh trả
+  reason không rỗng.
+- Policy kiểm classification, principal fixture, purpose, tool trong cả
+  `principal.allowed_tools` và scope cố định của agent, parent scope khi
+  delegation, cùng expiry ISO-8601 có timezone. Unknown principal, scope
+  thiếu, parent không có quyền, thời gian sai/hết hạn đều deny.
+- `python -m pytest tests/test_obo.py -v --basetemp=.pytest_tmp`:
+  **5 passed**. `support_l1` không gọi `read_customer`; `dpo` đọc được hồ sơ
+  gắn với ticket hợp lệ; delegation không mở rộng quyền cha; expiry và
+  principal lạ bị từ chối.
+- Runner tạo `agent_id`, `run_id`, expiry riêng; policy và ledger chạy trước
+  `search_docs`, `read_customer`, `http_post`. Ledger chỉ lưu SHA-256 của
+  arguments, không lưu query/body/PII thô; mỗi entry có `on_behalf_of`,
+  `agent_id`, `run_id`, `expires_at`, decision và reason.
+- Nội dung ticket được redact trước khi đi tới bước summarize. Run B chỉ
+  nhận ticket ID kiểu số lấy từ tên file và map sang customer qua
+  `related_tickets`; không dùng customer ID trong free text attacker.
+- Hồi quy `python -m pytest tests/test_split.py tests/test_injection.py tests/test_scaffold_dispatch.py -q --basetemp=.pytest_tmp/regression`:
+  **13 passed**. Cả bốn lure bị chặn dưới `support_l1` và `dpo`, khách chỉ
+  xuất hiện trong free text không bị đọc, còn khách liên kết hợp lệ vẫn đọc được.
+- Lượt kiểm cuối gộp sáu file test PII/policy/OBO/split/injection/scaffold:
+  **24 passed**. Self-check một lượt DPO tạo 23 ledger entry, có deny
+  `http_post`, reason đầy đủ và không chứa CCCD/SĐT/STK/email thô từ fixture.
+- `python -m compileall -q agent` và `git diff --check`: exit 0. Gitleaks
+  8.30.1 quét snapshot năm file thay đổi của CP3: exit 0, `no leaks found`.
+- Lần chạy OBO song song đầu tiên có 4 test pass và 1 lỗi setup
+  `FileNotFoundError` vì ba tiến trình pytest cùng thao tác dưới `.pytest_tmp`.
+  Chạy lại tuần tự đúng lệnh đề bài cho kết quả 5/5 pass; đây không phải lỗi
+  logic policy/runner.
+- `ledger.append()` được hoàn thiện tối thiểu vì CP3c bắt buộc ghi allow/deny
+  trước tool. `ledger.verify()` và bằng chứng ledger thật vẫn thuộc CP3e/CP5,
+  chưa được tuyên bố hoàn thành ở bước này.
+
 ## Kiểm tra cuối bài — chưa thực hiện
 
-- `python -m pytest tests/ -q`: chưa chạy toàn bộ; control còn scaffold.
+- `python -m pytest tests/ -q`: chưa chạy toàn bộ; `ledger.verify()` còn scaffold.
 - `pre-commit run --all-files`: chưa chạy; cấu hình và cài hook thuộc CP4.
 - Quét lịch sử token giả: thuộc CP4, chưa thực hiện.
 - Ledger verify: thuộc CP3e/CP5, chưa thực hiện.

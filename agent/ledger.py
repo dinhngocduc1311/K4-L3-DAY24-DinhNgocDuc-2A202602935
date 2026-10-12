@@ -37,11 +37,35 @@ rồi gọi verify() phải trả về False.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 
 
+REQUIRED_FIELDS = {
+    "ts", "agent_id", "run_id", "tool", "args_hash",
+    "classification", "decision", "reason",
+}
+
+
 def append(entry: dict, path: Path) -> dict:
-    raise NotImplementedError("BƯỚC 3d: implement ledger append")
+    missing = REQUIRED_FIELDS - entry.keys()
+    if missing:
+        raise ValueError(f"ledger entry missing fields: {', '.join(sorted(missing))}")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    previous_hash = "0" * 64
+    if path.exists():
+        lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line]
+        if lines:
+            previous_hash = json.loads(lines[-1])["hash"]
+
+    record = dict(entry, prev_hash=previous_hash)
+    payload = json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    record["hash"] = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    with path.open("a", encoding="utf-8") as ledger_file:
+        ledger_file.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+    return record
 
 
 def verify(path: Path) -> bool:

@@ -59,7 +59,15 @@ Interface bắt buộc (agent/loop.py import và gọi hàm này nếu tồn t�
 """
 from __future__ import annotations
 
+import hashlib
+import json
+import re
+import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from agent import ledger, pii, tools
+from agent.policy import PolicyContext, check
 
 REPORTS_DIR = Path(__file__).resolve().parent.parent / "reports"
 DEFAULT_LEDGER_PATH = REPORTS_DIR / "ledger.jsonl"
@@ -69,6 +77,113 @@ class RunnerScaffoldPending(NotImplementedError):
     """Only the original 3c stub uses this to enable the CP1/CP2 baseline."""
 
 
+def _args_hash(value) -> str:
+    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _authorize(*, ledger_path: Path, principal_id: str, run_id: str,
+               agent_id: str, expires_at: str, tool: str, args,
+               agent_scopes: tuple[str, ...], classification: str,
+               purpose: str, egress_enabled: bool) -> bool:
+    context = PolicyContext(
+        data_classification=classification,
+        request_purpose=purpose,
+        agent_owner=agent_id,
+        delegation_depth=0,
+        egress_enabled=egress_enabled,
+        principal_id=principal_id,
+        requested_tool=tool,
+        agent_scopes=agent_scopes,
+        expires_at=expires_at,
+    )
+    allowed, reason = check(context)
+    ledger.append(
+        {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "agent_id": agent_id,
+            "run_id": run_id,
+            "tool": tool,
+            "args_hash": _args_hash(args),
+            "classification": classification,
+            "decision": "allow" if allowed else "deny",
+            "reason": reason,
+            "on_behalf_of": principal_id,
+            "expires_at": expires_at,
+        },
+        ledger_path,
+    )
+    return allowed
+
+
 def handle(message: str, llm, log_dir: Path | None = None,
            principal_id: str = "support_l1") -> str:
-    raise RunnerScaffoldPending("BƯỚC 3c: implement trifecta split")
+    ledger_path = (log_dir or REPORTS_DIR) / "ledger.jsonl"
+    request_id = uuid.uuid4().hex
+    expires_at = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+
+    if not _authorize(
+        ledger_path=ledger_path,
+        principal_id=principal_id,
+        run_id=f"{request_id}:run-a",
+        agent_id="lab24-agent/run-a",
+        expires_at=expires_at,
+        tool="search_docs",
+        args={"query": message},
+        agent_scopes=("search_docs",),
+        classification="internal",
+        purpose="summarize-tickets",
+        egress_enabled=False,
+    ):
+        return llm.summarize([])
+
+    docs = tools.search_docs(message)
+    combined_text = "\n\n".join(doc["text"] for doc in docs)
+    injected = llm.find_injection(combined_text)
+    safe_docs = [{**doc, "text": pii.redact(doc["text"])} for doc in docs]
+
+    ticket_ids = {
+        int(match.group(1))
+        for doc in docs
+        if (match := re.fullmatch(r"ticket-(\d+)\.md", doc["id"]))
+    }
+    customers = json.loads(tools.CUSTOMERS_FILE.read_text(encoding="utf-8"))
+    customer_ids = [
+        record["customer_id"]
+        for record in customers
+        if ticket_ids.intersection(record.get("related_tickets", []))
+    ]
+
+    collected = []
+    for customer_id in customer_ids:
+        if _authorize(
+            ledger_path=ledger_path,
+            principal_id=principal_id,
+            run_id=f"{request_id}:run-b",
+            agent_id="lab24-agent/run-b",
+            expires_at=expires_at,
+            tool="read_customer",
+            args={"customer_id": customer_id},
+            agent_scopes=("read_customer", "http_post"),
+            classification="restricted",
+            purpose="support-reply",
+            egress_enabled=False,
+        ):
+            collected.append(tools.read_customer(customer_id))
+
+    if injected is not None and collected and _authorize(
+        ledger_path=ledger_path,
+        principal_id=principal_id,
+        run_id=f"{request_id}:run-b",
+        agent_id="lab24-agent/run-b",
+        expires_at=expires_at,
+        tool="http_post",
+        args={"url": injected.target_url, "body": {"records": collected}},
+        agent_scopes=("read_customer", "http_post"),
+        classification="restricted",
+        purpose="support-reply",
+        egress_enabled=True,
+    ):
+        tools.http_post(injected.target_url, {"records": collected})
+
+    return llm.summarize(safe_docs)
