@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 .pytest_cache/
 .pytest_tmp/
+.tools/
 reports/sink.log
 reports/ledger.jsonl
 reports/attack-before.log

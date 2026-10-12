@@ -1,0 +1,15 @@
+OPA Version: 1.21.1
+{"case": "valid direct call", "expected": true, "passed": true, "python_allow": true, "reasons_non_empty": true, "rego_allow": true}
+{"case": "invalid classification", "expected": false, "passed": true, "python_allow": false, "reasons_non_empty": true, "rego_allow": false}
+{"case": "restricted egress", "expected": false, "passed": true, "python_allow": false, "reasons_non_empty": true, "rego_allow": false}
+{"case": "negative delegation", "expected": false, "passed": true, "python_allow": false, "reasons_non_empty": true, "rego_allow": false}
+{"case": "unknown principal", "expected": false, "passed": true, "python_allow": false, "reasons_non_empty": true, "rego_allow": false}
+{"case": "purpose denied", "expected": false, "passed": true, "python_allow": false, "reasons_non_empty": true, "rego_allow": false}
+{"case": "principal tool denied", "expected": false, "passed": true, "python_allow": false, "reasons_non_empty": true, "rego_allow": false}
+{"case": "agent scope denied", "expected": false, "passed": true, "python_allow": false, "reasons_non_empty": true, "rego_allow": false}
+{"case": "parent scope denied", "expected": false, "passed": true, "python_allow": false, "reasons_non_empty": true, "rego_allow": false}
+{"case": "valid delegated call", "expected": true, "passed": true, "python_allow": true, "reasons_non_empty": true, "rego_allow": true}
+{"case": "expired authority", "expected": false, "passed": true, "python_allow": false, "reasons_non_empty": true, "rego_allow": false}
+{"case": "malformed expiry", "expected": false, "passed": true, "python_allow": false, "reasons_non_empty": true, "rego_allow": false}
+{"case": "expiry without UTC offset", "expected": false, "passed": true, "python_allow": false, "reasons_non_empty": true, "rego_allow": false}
+OPA_PARITY=13/13

@@ -1,0 +1,2 @@
+gliner==0.2.29
+protobuf==6.33.5

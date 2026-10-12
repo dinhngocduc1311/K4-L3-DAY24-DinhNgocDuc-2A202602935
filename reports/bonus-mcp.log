@@ -1,0 +1,1 @@
+{"current_hash": "3cfb24063043c4ee699c7eda79cbb2731f7534390c8d68091ce5acc8674924d2", "exfil_attempted": false, "metadata_changed": true, "pinned_hash": "a11ab44b706daeac34594c8f5fb8e4a7a96367ba4aab8eae339a6146ba9d7532", "protocol": "2025-06-18", "second_call_blocked": true, "server_call_count": 1, "tool": "summarize_ticket"}

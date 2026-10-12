@@ -328,8 +328,77 @@ chạy CLI/mock cục bộ như đề bài, không phải dịch vụ nhiều ti
   track. Toàn bộ 19 artifact bắt buộc trong `SUBMISSION.md` có trên
   `origin/main`; repo không shallow và vẫn chứa commit synthetic `1bdd849`.
 - Rà rubric bắt buộc: đủ evidence cho cả 10 tiêu chí, tương ứng **100/100
-  điểm bắt buộc theo tự đánh giá**; không triển khai bonus tùy chọn.
+  điểm bắt buộc theo tự đánh giá**. Bốn bonus được bổ sung ở lần kiểm sau.
 - Rà 5 điều kiện trượt: 0 reason rỗng; after log 0 byte/0 PII fixture;
   split/OBO/injection 14 test pass; không PII raw trong ledger; Gitleaks cây
   hiện tại sạch và dữ liệu fixture được generator seed cố định xác nhận là
   synthetic.
+
+## Bonus — OPA, GLiNER, MCP và delete cascade
+
+Kiểm ngày 12/10/2026 (Asia/Bangkok), sau audit BƯỚC 6. Bonus không thay
+đổi runner, policy Python, fixture hay ba evidence bắt buộc.
+
+- `python -m pytest tests -k bonus -v --basetemp=.pytest_tmp`:
+  **7 passed, 38 deselected**, không fail/skip. Lệnh đầu dùng glob
+  `tests/test_bonus_*.py` không được PowerShell mở rộng và thu 0 test; đã
+  sửa lệnh tái hiện trong `bonus/README.md` sang `tests -k bonus`.
+- Một lượt chạy song song test bắt buộc và bonus dùng chung `.pytest_tmp`
+  gây `PermissionError` khi hai tiến trình cùng dọn fixture trên Windows;
+  chạy tuần tự cùng lệnh đạt **7 passed** trong 1.43 giây.
+- `python -m pytest tests/ -q --basetemp=.pytest_tmp` sau khi thêm bonus:
+  **45 passed, 0 failed, 0 skipped** trong 6.43 giây; gồm 38 test phần bắt
+  buộc và 7 test bonus.
+- OPA CLI v1.21.1, binary `windows/amd64` có SHA-256 khớp checksum release;
+  `opa fmt --fail`, `opa check --strict` pass và policy Rego parity
+  **13/13** với `agent.policy.check`, gồm timestamp sai/mất offset. Xem
+  `reports/bonus-opa.log`.
+- GLiNER 0.2.29, `urchade/gliner_multi_pii-v1` revision `1fcf13e…`, threshold
+  0.3 trên đúng 120 mẫu/SHA-256 đã ghi: regex gold/pred/tp
+  **118/118/118**, precision/recall
+  **1.000/1.000**; GLiNER **118/97/96**, **0.990/0.814**, 51.321 giây CPU.
+  Lần đầu thiếu `protobuf`; cài `protobuf==6.33.5` rồi chạy lại thành công.
+  `pip check` sau cài đặt: `No broken requirements found`.
+- MCP rug pull local: metadata tool đổi hash sau lần gọi đầu; client pin
+  metadata chặn lần gọi thứ hai, `exfil_attempted=false`. Delete cascade
+  trên bản sao xoá 1 customer + 2 ticket, nguồn không đổi và ledger verify
+  trước/sau đều `true`. Xem hai log bonus tương ứng.
+- Chạy lại `check_lure` ban đầu gặp `UnicodeEncodeError` do terminal dùng
+  CP1252; đặt `PYTHONIOENCODING=utf-8` như đề rồi đạt **4/4**. Ledger chính
+  vẫn verify `True`; `gitleaks dir --config .gitleaks.toml --redact .` mã 0
+  và không thấy leak.
+- `pre-commit` không có trong PATH của terminal; gọi trực tiếp
+  `.venv\Scripts\pre-commit.exe run --all-files` và hook
+  `Detect hardcoded secrets` pass.
+- `python -m pip install --require-hashes -r requirements.lock` và
+  `pip check` vẫn pass. GLiNER/protobuf là dependency bonus tách ở
+  `bonus/requirements.txt`, không làm thay đổi lock bắt buộc.
+
+Theo tự rà rubric, cả bốn hạng mục bonus đều có code, test và log riêng:
+OPA/Cedar (4), GLiNER (3), MCP rug pull (4), delete cascade (3). Tổng thô
+14 điểm bị giới hạn ở **10 điểm bonus**; rubric tiếp tục giới hạn điểm cuối
+ở 100. Chi tiết phương pháp và giới hạn nằm trong `reports/bonus.md`.
+
+## Audit cuối trước commit bonus
+
+- Đã đọc lại README, RULES, CHECKPOINTS, RUBRIC, SUBMISSION, các báo cáo,
+  luồng tool/policy/ledger và toàn bộ staged diff theo tải dự kiến là một học
+  viên chạy CLI/mock cục bộ.
+- **58 Markdown** do Git quản lý đều đọc được bằng UTF-8; 45 ticket có đúng
+  heading, **46** tham chiếu `file:dòng` không vượt cuối file và **4** link
+  local đều tồn tại. Ba chuỗi `.venv/...:45` trong incident/verification là
+  nội dung finding cũ đã ghi lại, không phải link evidence.
+- Đủ **19/19** artifact trong `SUBMISSION.md`, đều tồn tại và được Git track.
+  Không có `.venv`, `.tools`, cache hoặc `reports/sink.log` trong index.
+- Tách riêng test bắt buộc cho kết quả **38 passed, 7 deselected**; chạy
+  tuần tự bonus cho kết quả **7 passed, 38 deselected**; full suite cuối
+  **45 passed**. Không có test bị skip trong full suite.
+- Ledger chính có 46 dòng, `verify=True`, 0 reason rỗng, 0 PII fixture thô
+  và 2 quyết định deny `http_post`. Before có 4 POST/1196 byte chứa fixture
+  `KH-000999`; after 0 byte và không chứa giá trị hồ sơ nào.
+- Gitleaks v8.30.1: cây hiện tại sạch; quét 12 commit trả mã 1 như dự kiến,
+  đúng **1** finding `lab24-synthetic-token` đã redact ở commit
+  `1bdd849922156c868a5ee9293d68f5b72e242d2c`. Hook pre-commit pass.
+- Kết luận audit: không còn finding phải sửa trong phạm vi/rubric của lab;
+  đủ 100 điểm bắt buộc theo self-check và đủ evidence để TA xét mức bonus
+  tối đa 10 điểm. Điểm chính thức vẫn do TA quyết định.
